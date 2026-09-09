@@ -26,18 +26,28 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   const sessionCookie = cookieStore.get("mc_session")?.value;
 
   if (sessionCookie) {
+    let parsed: AppUser | null = null;
     try {
-      const parsed = JSON.parse(sessionCookie) as AppUser;
-      if (parsed && parsed.email) {
-        // El administrador siempre tiene suscripción profesional activa
-        if (parsed.role === "admin" || parsed.email === ADMIN_CREDENTIALS.email) {
-          parsed.isSubscribed = true;
-          parsed.role = "admin";
-        }
-        return parsed;
-      }
+      // Intentar primero decodificando caracteres codificados en URL (%7B...)
+      parsed = JSON.parse(decodeURIComponent(sessionCookie)) as AppUser;
     } catch {
-      // Cookie corrupta
+      try {
+        parsed = JSON.parse(sessionCookie) as AppUser;
+      } catch {
+        // Cookie corrupta
+      }
+    }
+
+    if (parsed && parsed.email) {
+      // El administrador siempre tiene suscripción profesional activa
+      if (
+        parsed.role === "admin" ||
+        parsed.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase()
+      ) {
+        parsed.isSubscribed = true;
+        parsed.role = "admin";
+      }
+      return parsed;
     }
   }
 
