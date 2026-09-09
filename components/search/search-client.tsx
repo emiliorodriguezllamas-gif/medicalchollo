@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X, Lock, Download, ArrowUpDown } from "lucide-react";
+import { Search, SlidersHorizontal, X, Lock, Download, ArrowUpDown, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -552,9 +552,27 @@ function ProductResultCard({
               {product.unit && (
                 <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
               )}
-              <p className="text-xs text-gray-400 mt-0.5">
-                Comparado en {product.store_count} {product.store_count === 1 ? "tienda" : "tiendas"}
-              </p>
+              {product.reviews_count && product.reviews_count > 0 ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="flex items-center gap-0.5">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-bold text-gray-800">
+                      {product.average_rating ? Number(product.average_rating).toFixed(1) : ""}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-gray-400">
+                    ({product.reviews_count})
+                  </span>
+                  <span className="text-gray-300">•</span>
+                  <span className="text-xs text-gray-400">
+                    {product.store_count} {product.store_count === 1 ? "tienda" : "tiendas"}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Comparado en {product.store_count} {product.store_count === 1 ? "tienda" : "tiendas"}
+                </p>
+              )}
             </div>
 
             {/* Precio & Acciones */}

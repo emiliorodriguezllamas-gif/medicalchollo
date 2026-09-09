@@ -85,10 +85,28 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS product_reviews (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      clinic_name TEXT,
+      specialty TEXT DEFAULT 'Odontología',
+      rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+      title TEXT NOT NULL,
+      comment TEXT NOT NULL,
+      is_verified_buyer INTEGER DEFAULT 1,
+      helpful_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
     CREATE INDEX IF NOT EXISTS idx_products_specialty ON products(specialty_slug);
     CREATE INDEX IF NOT EXISTS idx_product_prices_prod ON product_prices(product_id);
     CREATE INDEX IF NOT EXISTS idx_price_history_prod ON price_history(product_id);
+    CREATE INDEX IF NOT EXISTS idx_product_reviews_prod ON product_reviews(product_id);
+    CREATE INDEX IF NOT EXISTS idx_product_reviews_rating ON product_reviews(rating);
   `);
 }
 
@@ -447,7 +465,9 @@ export function queryProducts({
     SELECT id, name, slug, specialty_slug, category_name, brand_name, image_url, unit, min_price, min_price_store_name,
       (SELECT COUNT(*) FROM product_prices WHERE product_id = products.id) as store_count,
       (SELECT MAX(price) FROM product_prices WHERE product_id = products.id) as max_price,
-      ROUND(COALESCE((SELECT MAX(price) FROM product_prices WHERE product_id = products.id), min_price) - min_price, 2) as max_savings
+      ROUND(COALESCE((SELECT MAX(price) FROM product_prices WHERE product_id = products.id), min_price) - min_price, 2) as max_savings,
+      (SELECT COUNT(*) FROM product_reviews WHERE product_id = products.id) as reviews_count,
+      ROUND((SELECT AVG(rating) FROM product_reviews WHERE product_id = products.id), 1) as average_rating
     FROM products
     ${where}
     ORDER BY ${orderBy}
@@ -460,7 +480,9 @@ export function queryProducts({
 export function queryProductBySlug(slug: string) {
   const db = getDb();
   const product = db.prepare(`
-    SELECT p.*, s.name as specialty_name, s.color as specialty_color
+    SELECT p.*, s.name as specialty_name, s.color as specialty_color,
+      (SELECT COUNT(*) FROM product_reviews WHERE product_id = p.id) as reviews_count,
+      ROUND((SELECT AVG(rating) FROM product_reviews WHERE product_id = p.id), 1) as average_rating
     FROM products p
     LEFT JOIN specialties s ON p.specialty_slug = s.slug
     WHERE p.slug = ? AND p.is_active = 1
@@ -511,4 +533,104 @@ export function queryStores() {
     FROM stores
     ORDER BY offers_count DESC
   `).all();
+}
+
+export interface ProductReview {
+  id: string;
+  product_id: string;
+  user_id: string;
+  user_name: string;
+  clinic_name: string | null;
+  specialty: string;
+  rating: number;
+  title: string;
+  comment: string;
+  is_verified_buyer: number;
+  helpful_count: number;
+  created_at: string;
+}
+
+export function queryProductReviews(productId: string) {
+  const db = getDb();
+  const reviews = db.prepare(`
+    SELECT *
+    FROM product_reviews
+    WHERE product_id = ?
+    ORDER BY created_at DESC
+  `).all(productId) as ProductReview[];
+
+  const totalCount = reviews.length;
+  let averageRating = 0;
+  const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+  if (totalCount > 0) {
+    const sum = reviews.reduce((acc, r) => {
+      distribution[r.rating] = (distribution[r.rating] || 0) + 1;
+      return acc + r.rating;
+    }, 0);
+    averageRating = Math.round((sum / totalCount) * 10) / 10;
+  }
+
+  const positiveReviews = (distribution[4] || 0) + (distribution[5] || 0);
+  const recommendPercent = totalCount > 0 ? Math.round((positiveReviews / totalCount) * 100) : 100;
+
+  return {
+    reviews,
+    totalCount,
+    averageRating,
+    distribution,
+    recommendPercent,
+  };
+}
+
+export function insertProductReview(data: {
+  product_id: string;
+  user_id?: string;
+  user_name: string;
+  clinic_name?: string;
+  specialty?: string;
+  rating: number;
+  title: string;
+  comment: string;
+  is_verified_buyer?: boolean;
+}): ProductReview {
+  const db = getDb();
+  const id = `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const review = {
+    id,
+    product_id: data.product_id,
+    user_id: data.user_id || `user-${Date.now()}`,
+    user_name: data.user_name.trim(),
+    clinic_name: data.clinic_name?.trim() || null,
+    specialty: data.specialty?.trim() || "Odontología",
+    rating: Math.min(5, Math.max(1, Math.round(data.rating))),
+    title: data.title.trim(),
+    comment: data.comment.trim(),
+    is_verified_buyer: data.is_verified_buyer !== false ? 1 : 0,
+    helpful_count: 0,
+    created_at: new Date().toISOString(),
+  };
+
+  db.prepare(`
+    INSERT INTO product_reviews (
+      id, product_id, user_id, user_name, clinic_name, specialty,
+      rating, title, comment, is_verified_buyer, helpful_count, created_at
+    ) VALUES (
+      @id, @product_id, @user_id, @user_name, @clinic_name, @specialty,
+      @rating, @title, @comment, @is_verified_buyer, @helpful_count, @created_at
+    )
+  `).run(review);
+
+  return review;
+}
+
+export function voteReviewHelpful(reviewId: string) {
+  const db = getDb();
+  db.prepare(`
+    UPDATE product_reviews
+    SET helpful_count = helpful_count + 1
+    WHERE id = ?
+  `).run(reviewId);
+  const updated = db.prepare(`SELECT helpful_count FROM product_reviews WHERE id = ?`).get(reviewId) as { helpful_count: number } | undefined;
+  return updated?.helpful_count ?? 0;
 }

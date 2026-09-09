@@ -176,6 +176,8 @@ export type ProductSearchResult = {
   max_price?: number | null;
   max_savings?: number | null;
   store_count: number;
+  reviews_count?: number;
+  average_rating?: number;
   // Solo para suscriptores activos:
   min_price_store_name?: string;
   min_price_store_url?: string; // La URL de compra real

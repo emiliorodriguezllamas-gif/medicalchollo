@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PriceChart } from "@/components/product/price-chart";
 import { PriceTable } from "@/components/product/price-table";
 import { ProductActions } from "@/components/product/product-actions";
-import { ExternalLink, Lock, RefreshCw, TrendingDown, Package } from "lucide-react";
+import { ExternalLink, Lock, RefreshCw, TrendingDown, Package, Star } from "lucide-react";
+import { ProductReviews } from "@/components/product/product-reviews";
 import type { Metadata } from "next";
 
 const DEMO_PRODUCTS: Record<string, any> = {
@@ -85,17 +86,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   let product: any = null;
   let prices: any[] = [];
+  let currentUser: any = null;
   let isSubscribed = false;
+  let reviewsData: any = null;
 
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const user = await getCurrentUser();
     if (user) {
+      currentUser = user;
       isSubscribed = user.isSubscribed;
     }
   } catch {}
 
-  const { queryProductBySlug } = await import("@/lib/db");
+  const { queryProductBySlug, queryProductReviews } = await import("@/lib/db");
   const sqliteResult = queryProductBySlug(slug);
 
   if (sqliteResult) {
@@ -113,6 +117,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ...pr,
       stores: { name: pr.store_name, slug: pr.store_slug },
     }));
+    try {
+      reviewsData = queryProductReviews(sqliteResult.product.id);
+    } catch {}
   } else if (!isSupabaseConfigured()) {
     product = DEMO_PRODUCTS[slug] ?? DEMO_PRODUCTS["guantes-nitrilo-azul-no-esteriles-sin-polvo-100-uds"];
     prices = product?.prices ?? [];
@@ -229,6 +236,32 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       )}
                     </div>
                     <h1 className="text-xl font-bold text-gray-900 mb-1">{product.name}</h1>
+
+                    {/* Valoraciones y Reseñas de Clínicas */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-4 w-4 ${
+                              star <= Math.round(reviewsData?.averageRating || product.average_rating || 0)
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-gray-200 text-gray-200"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs font-bold text-gray-800">
+                        {(reviewsData?.averageRating || product.average_rating) ? Number(reviewsData?.averageRating || product.average_rating).toFixed(1) : "—"}
+                      </span>
+                      <a
+                        href="#resenas"
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        ({reviewsData?.totalCount ?? product.reviews_count ?? 0} {(reviewsData?.totalCount ?? product.reviews_count ?? 0) === 1 ? "opinión clínica" : "opiniones de clínicas"})
+                      </a>
+                    </div>
+
                     {product.brands && (
                       <p className="text-sm text-gray-500 mb-2">
                         Marca: <span className="font-medium text-gray-700">{product.brands.name}</span>
@@ -286,6 +319,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <PriceChart productId={product.id} />
               </CardContent>
             </Card>
+
+            {/* Reseñas y opiniones clínicas verificadas */}
+            <ProductReviews
+              productId={product.id}
+              productName={product.name}
+              initialData={reviewsData}
+              currentUser={currentUser}
+            />
           </div>
 
           {/* Sidebar: mejor precio */}
