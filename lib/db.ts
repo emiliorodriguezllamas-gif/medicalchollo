@@ -14,6 +14,14 @@ export function getDb(): Database.Database {
     dbInstance.pragma("journal_mode = WAL");
     dbInstance.pragma("foreign_keys = ON");
 
+    // Registro de función SQL insensible a acentos/diacríticos
+    try {
+      dbInstance.function("unaccent", (str: unknown) => {
+        if (!str) return "";
+        return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      });
+    } catch {}
+
     initSchema(dbInstance);
 
     // Si es nueva o está vacía, sembrar con catálogo rico inicial
@@ -434,8 +442,29 @@ export function queryProducts({
   const params: any = {};
 
   if (q.trim()) {
-    where += " AND (name LIKE @q OR brand_name LIKE @q OR category_name LIKE @q OR ean LIKE @q OR manufacturer_ref LIKE @q)";
-    params.q = `%${q.trim()}%`;
+    const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const stopWords = new Set(["de", "la", "el", "en", "para", "con", "y", "del", "los", "las", "un", "una", "al", "por"]);
+    const rawTokens = normalize(q.trim())
+      .split(/\s+/)
+      .filter((t) => t.length > 0 && !stopWords.has(t));
+
+    const tokensToSearch = rawTokens.length > 0 ? rawTokens : [normalize(q.trim())];
+
+    tokensToSearch.forEach((token, idx) => {
+      const stem = token.length > 3 && token.endsWith("s")
+        ? (token.endsWith("es") ? token.slice(0, -2) : token.slice(0, -1))
+        : token;
+      const paramStem = `stem_${idx}`;
+      const paramToken = `tok_${idx}`;
+
+      where += ` AND (
+        unaccent(name || ' ' || COALESCE(brand_name, '') || ' ' || COALESCE(category_name, '') || ' ' || COALESCE(description, '') || ' ' || COALESCE(ean, '') || ' ' || COALESCE(manufacturer_ref, '')) LIKE @${paramStem}
+        OR unaccent(name) LIKE @${paramToken}
+      )`;
+
+      params[paramStem] = `%${stem}%`;
+      params[paramToken] = `%${token}%`;
+    });
   }
 
   if (specialty) {

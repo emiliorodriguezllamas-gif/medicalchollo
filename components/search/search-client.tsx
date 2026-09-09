@@ -40,6 +40,7 @@ export function SearchClient({
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [inputValue, setInputValue] = useState(initialQuery);
   const [query, setQuery] = useState(initialQuery);
   const [specialty, setSpecialty] = useState(initialSpecialty);
   const [brand, setBrand] = useState(initialBrand);
@@ -51,7 +52,7 @@ export function SearchClient({
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Sincronizar automáticamente cuando cambie la URL
+  // Sincronizar automáticamente cuando cambie la URL (ej. enlaces de la barra de navegación)
   useEffect(() => {
     const qParam = searchParams.get("q") ?? "";
     const specParam = searchParams.get("especialidad") ?? "";
@@ -60,6 +61,7 @@ export function SearchClient({
     const sortParam = searchParams.get("orden") ?? "price_asc";
     const pageParam = Number(searchParams.get("pagina") ?? 1);
 
+    setInputValue(qParam);
     setQuery(qParam);
     setSpecialty(specParam);
     setBrand(brandParam);
@@ -69,6 +71,18 @@ export function SearchClient({
   }, [searchParams]);
 
   const PER_PAGE = 20;
+
+  // Búsqueda en vivo con debounce de 350ms mientras el usuario escribe
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputValue !== query) {
+        setQuery(inputValue);
+        setPage(1);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [inputValue, query]);
 
   const fetchResults = useCallback(async () => {
     setLoading(true);
@@ -96,8 +110,8 @@ export function SearchClient({
     fetchResults();
   }, [fetchResults]);
 
-  // Actualizar URL sin recargar página
-  const updateURL = useCallback(() => {
+  // Actualizar URL sin recargar página (solo cuando query confirmada o filtros cambian)
+  useEffect(() => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (specialty) params.set("especialidad", specialty);
@@ -105,8 +119,9 @@ export function SearchClient({
     if (store) params.set("tienda", store);
     if (sort && sort !== "price_asc") params.set("orden", sort);
     if (page > 1) params.set("pagina", String(page));
-    router.replace(`/buscar?${params.toString()}`, { scroll: false });
-  }, [query, specialty, brand, store, sort, page, router]);
+    const newUrl = `/buscar${params.toString() ? `?${params.toString()}` : ""}`;
+    window.history.replaceState(null, "", newUrl);
+  }, [query, specialty, brand, store, sort, page]);
 
   const exportCSV = () => {
     if (results.length === 0) return;
@@ -131,12 +146,9 @@ export function SearchClient({
     document.body.removeChild(link);
   };
 
-  useEffect(() => {
-    updateURL();
-  }, [updateURL]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setQuery(inputValue);
     setPage(1);
     fetchResults();
   };
@@ -164,12 +176,13 @@ export function SearchClient({
           {query ? `Resultados para "${query}"` : "Buscar suministros médicos"}
         </h1>
 
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <form onSubmit={handleSearch} action="/buscar" method="GET" className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              name="q"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               placeholder="Busca por nombre, referencia o código EAN..."
               className="pl-10 h-12 text-base"
             />

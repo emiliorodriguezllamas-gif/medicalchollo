@@ -105,13 +105,14 @@ export function SearchAutocomplete({
 
   return (
     <div ref={wrapperRef} className={`relative w-full ${className}`}>
-      <form onSubmit={handleSubmit} className="relative w-full">
+      <form onSubmit={handleSubmit} action="/buscar" method="GET" className="relative w-full flex items-center">
         <Search
           className={`absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none ${
             isLarge ? "h-5 w-5" : "h-4 w-4"
           }`}
         />
         <input
+          name="q"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -121,15 +122,23 @@ export function SearchAutocomplete({
           autoFocus={autoFocus}
           className={`w-full rounded-xl border border-gray-200 bg-white shadow-sm transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
             isLarge
-              ? "h-14 pl-12 pr-12 text-base shadow-md"
-              : "h-10 pl-10 pr-10 text-sm"
+              ? "h-14 pl-12 pr-28 text-base shadow-md"
+              : "h-10 pl-10 pr-20 text-sm"
           }`}
         />
-        {loading && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
-          </div>
-        )}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+          {loading && (
+            <Loader2 className="h-4 w-4 animate-spin text-brand-600 mr-1" />
+          )}
+          <button
+            type="submit"
+            className={`rounded-lg bg-brand-600 text-white font-medium hover:bg-brand-700 transition-colors flex items-center justify-center shadow-xs ${
+              isLarge ? "h-10 px-4 text-sm" : "h-7 px-2.5 text-xs"
+            }`}
+          >
+            Buscar
+          </button>
+        </div>
       </form>
 
       {/* Desplegable de sugerencias en vivo */}

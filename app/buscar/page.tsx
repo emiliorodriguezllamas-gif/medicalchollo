@@ -66,7 +66,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       <div className="container-page py-8">
         <Suspense fallback={<SearchSkeleton />}>
           <SearchClient
-            key={`${params.q ?? ""}-${params.especialidad ?? ""}-${params.marca ?? ""}-${params.tienda ?? ""}-${params.orden ?? ""}-${params.pagina ?? "1"}`}
             initialQuery={params.q ?? ""}
             initialSpecialty={params.especialidad ?? ""}
             initialBrand={params.marca ?? ""}
