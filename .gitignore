@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+.next/
+out/
+dist/
+
+# Variables de entorno (NUNCA subir al control de versiones)
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+scrapers/.venv/
+scrapers/venv/
+scrapers/__pycache__/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Playwright
+scrapers/playwright-report/
+scrapers/test-results/
+
+# SQLite temporales
+*.db-wal
+*.db-shm
+
+# Build caches
+*.tsbuildinfo
+
